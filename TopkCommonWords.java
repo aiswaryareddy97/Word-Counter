@@ -1,4 +1,4 @@
-import java.io.FileReader;
+import java.io.*;
 import java.io.IOException;
 import java.util.*;
 import java.io.BufferedReader;
@@ -15,7 +15,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import java.net.URI;
 import org.apache.hadoop.fs.FileSystem;
 
 public class TopkCommonWords {
@@ -24,19 +24,30 @@ public class TopkCommonWords {
 
         ArrayList<String> stopwords = new ArrayList<>();
 
-        // to store all the stopwords into an ArrayList
+        // to read and store all the stopwords into an ArrayList
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
-            // due to multiple path inputs, there was error for FileSplit,
-            // hard-coded stopwords file
-            // String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            //S tring filePath = ((FileSplit) context.getInputSplit()).getPath().toString();
-            Path path = new Path("commonwords/input/stopwords.txt");
-            //if (fileName.equals("stopwords.txt")) {
-            BufferedReader reader = new BufferedReader(new FileReader(String.valueOf(path)));
-            String word;
-            while ((word = reader.readLine()) != null) {
-                stopwords.add(word);
+            URI[] cacheFiles = context.getCacheFiles();
+
+            if (cacheFiles != null && cacheFiles.length > 0)
+            {
+                String line = "";
+
+                FileSystem fs = FileSystem.get(context.getConfiguration());
+                Path getFilePath = new Path(cacheFiles[0].toString());
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(getFilePath)));
+
+                while ((line = reader.readLine()) != null)
+                {
+                    String[] words = line.split(" ");
+
+                    for (int i = 0; i < words.length; i++)
+                    {
+                        // add the words to ArrayList
+                        stopwords.add(words[i]);
+                    }
+                }
                 //}
             }
 
@@ -68,16 +79,30 @@ public class TopkCommonWords {
 
         ArrayList<String> stopwords = new ArrayList<String>();
 
+        // to read and store all the stopwords into an ArrayList
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
-            //String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            //String filePath = ((FileSplit) context.getInputSplit()).getPath().toString();
-            Path path = new Path("commonwords/input/stopwords.txt");
-            //if (fileName.equals("stopwords.txt")) {
-            BufferedReader reader = new BufferedReader(new FileReader(String.valueOf(path)));
-            String word;
-            while ((word = reader.readLine()) != null) {
-                stopwords.add(word);
+            URI[] cacheFiles = context.getCacheFiles();
+
+            if (cacheFiles != null && cacheFiles.length > 0)
+            {
+                String line = "";
+
+                FileSystem fs = FileSystem.get(context.getConfiguration());
+                Path getFilePath = new Path(cacheFiles[0].toString());
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(getFilePath)));
+
+                while ((line = reader.readLine()) != null)
+                {
+                    String[] words = line.split(" ");
+
+                    for (int i = 0; i < words.length; i++)
+                    {
+                        // add the words to ArrayList
+                        stopwords.add(words[i]);
+                    }
+                }
                 //}
             }
 
@@ -170,36 +195,34 @@ public class TopkCommonWords {
                 }
             }
         }
-        }
-
-        public static void main(String [] args) throws Exception{
-            Job job = Job.getInstance(new Configuration());
-            job.setJarByClass(TopkCommonWords.class);
-
-            job.setMapperClass(File1Mapper.class);
-            job.setMapperClass(File2Mapper.class);
-            job.setReducerClass(FileReducer.class);
-
-            job.setMapOutputKeyClass(Text.class);
-            job.setMapOutputValueClass(IntWritable.class);
-
-            job.setOutputKeyClass(IntWritable.class);
-            job.setOutputValueClass(Text.class);
-
-            // Using MultipleInputs as there are multiple mappers
-            // and the inputs will be 2 different files
-            MultipleInputs.addInputPath(job, new Path(args[0]),
-                    TextInputFormat.class, File1Mapper.class);
-            MultipleInputs.addInputPath(job, new Path(args[1]),
-                    TextInputFormat.class, File2Mapper.class);
-            //MultipleInputs.addInputPath(job, new Path(args[2]),
-            //        TextInputFormat.class, File1Mapper.class);
-            //MultipleInputs.addInputPath(job, new Path(args[2]),
-            //       TextInputFormat.class, File2Mapper.class);
-            FileOutputFormat.setOutputPath(job, new Path(args[3]));
-
-            boolean i = job.waitForCompletion(true);
-            System.exit(i ? 0 : 1);
-
-        }
     }
+
+    public static void main(String [] args) throws Exception{
+        Job job = Job.getInstance(new Configuration());
+        job.setJarByClass(TopkCommonWords.class);
+
+        job.setMapperClass(File1Mapper.class);
+        job.setMapperClass(File2Mapper.class);
+        job.setReducerClass(FileReducer.class);
+
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(Text.class);
+
+        job.addCacheFile(new URI(args[2]));
+
+        // Using MultipleInputs as there are multiple mappers
+        // and the inputs will be 2 different files
+        MultipleInputs.addInputPath(job, new Path(args[0]),
+                TextInputFormat.class, File1Mapper.class);
+        MultipleInputs.addInputPath(job, new Path(args[1]),
+                TextInputFormat.class, File2Mapper.class);
+        FileOutputFormat.setOutputPath(job, new Path(args[3]));
+
+        boolean i = job.waitForCompletion(true);
+        System.exit(i ? 0 : 1);
+
+    }
+}
